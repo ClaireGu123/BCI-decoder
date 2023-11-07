@@ -1,0 +1,8 @@
+scipy
+numpy
+torch
+pathlib
+tensorflow
+g2p-en
+pytorch-ignite
+fire

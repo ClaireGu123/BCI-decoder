@@ -1,0 +1,29 @@
+hydra:
+  run:
+    dir: ${outputDir}
+  sweep:
+    dir: ${outputDir}
+    subdir: ${hydra.job.override_dirname}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - outputDir
+          - loadDir
+          - dataset.sessions
+defaults:
+  - dataset: neural_speech_dataset.yaml
+  - model: transformer_AE.yaml
+
+
+distributed: false
+batch_size: 16
+max_epochs: 1
+num_workers: 10
+nproc_per_node: 2 # number of GPUs/CPUs
+backend: 'gloo' # mpi, gloo, nccl https://pytorch.org/docs/stable/distributed.html#backends
+
+
+outputDir: chkpoint_contrastive
+
+
