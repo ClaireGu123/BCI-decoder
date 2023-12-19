@@ -10,6 +10,7 @@ class FeatureExtractor(nn.Module):
     def __init__(self, config):
         super().__init__()
         channels= config.model.channels
+        in_feature_dim = config.model.in_feature_dim
         self.extractor = nn.Sequential(
             nn.Conv2d(in_channels=channels, out_channels=channels, kernel_size=(3,3), stride=(1,1), padding=(1,1)),
             nn.GELU(),
@@ -29,7 +30,7 @@ class FeatureExtractor(nn.Module):
             nn.Linear(in_features=channels, out_features=channels),
             nn.GELU(),
             nn.Linear(in_features=channels, out_features=channels),
-            nn.GeLU(),
+            nn.GELU(),
         )
 
 

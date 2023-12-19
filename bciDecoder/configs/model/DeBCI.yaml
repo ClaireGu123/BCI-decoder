@@ -1,0 +1,4 @@
+n_classes: 41
+channels: 1
+num_frames: 800
+in_feature_dim: 128

@@ -34,9 +34,12 @@ def _block_wise_normalization(dat, input_features):
 class NeuralDataset(IterableDataset):
     def __init__(self,config,partition, input_transform, transform):
 
+        
         base_dir = config.dataset.base_dir
         self.loc = config.dataset.area
         self.max_frame = config.dataset.max_frame
+        self.max_seq_len = config.dataset.max_seq_len
+        self.config = config
         self.partition = partition
         self.block_lists = get_speech_session_blocks()
         self.data_path= os.path.join(base_dir, 'competitionData')
@@ -50,8 +53,6 @@ class NeuralDataset(IterableDataset):
             mat_file = os.path.join(self.data_path, self.partition, session_name+'.mat' )
             dat = scipy.io.loadmat(mat_file)
             input_features = []
-            transcriptions = []
-            frame_lens = []
             n_trials = dat['sentenceText'].shape[0]
             #collect area 6v tx1 and spikePow features
             input_features = self.input_transform(dat, self.loc, n_trials, self.max_frame) #S * T * F (128 channels * 2)
@@ -62,6 +63,7 @@ class NeuralDataset(IterableDataset):
                 yield self.transform({'inputFeatures': input_features[i],
                     'transcription': sentence,
                     'frameLens': sentence_len,
-                    })
+                    },
+                    config = self.config,)
 
 

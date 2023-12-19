@@ -17,9 +17,6 @@ from datasets.utils.text_processor import (
 LOCATION_MAPPING = {'6v': {'start_ind': 0, 'end_ind': 128}, 
                 '44': {'start_ind':128, 'end_ind': 256}}
 
-nClasses = 40
-maxSeqLen = 500
-
 def in_dataset_transform_channel_preserved(dat,  loc, n_trials, max_frame):
     # TODO: truncate with a warning
     def _pad_time_dim(a, max_frame):
@@ -39,14 +36,14 @@ def in_dataset_transform_channel_preserved(dat,  loc, n_trials, max_frame):
         input_features.append(features) # S (num sentences in a session) * C (num channels) * T (frame lens) * F (128)
     return input_features
 
-def out_dataset_transform_channel_preserved(sample):
+def out_dataset_transform_channel_preserved(sample, config):
     # sample is 1 sentence
     input_features = sample['inputFeatures'] # C * T * F
     transcript = clean(sample['transcription'])
 
-    classLabels = np.zeros([input_features.shape[0], nClasses]).astype(np.float32)
+    classLabels = np.zeros([input_features.shape[0], config.dataset.n_classes]).astype(np.float32)
     newClassSignal = np.zeros([input_features.shape[0], 1]).astype(np.float32)
-    phon_ids = np.zeros([maxSeqLen]).astype(np.int32)
+    phon_ids = np.zeros([config.dataset.max_seq_len]).astype(np.int32)
 
     transcript_phon = phonemezation(transcript)
     phon_ids[:len(transcript_phon)] = [phoneToId(p) for p in transcript_phon]
@@ -54,7 +51,7 @@ def out_dataset_transform_channel_preserved(sample):
     ceMask = np.zeros([input_features.shape[0]]).astype(np.float32)
     ceMask[0:sample['frameLens']] = 1
 
-    paddedTranscription = np.zeros([maxSeqLen]).astype(np.int32)
+    paddedTranscription = np.zeros([config.dataset.max_seq_len]).astype(np.int32)
     paddedTranscription[0:len(transcript)] = np.array(convert_to_ascii(transcript))
     feature = {'inputFeatures': input_features, 
         'seqClassIDs': phon_ids,

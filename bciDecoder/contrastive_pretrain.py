@@ -1,6 +1,5 @@
 """
-pretrain template for contrastive representation learning (masked prediction style pretrain, e.g. BERT,
-or masked reconstruction style pretrain, e.g. wav2vec2.0, or non-trastive pretrain, e.g. barlow-twins, CLIP)
+pretrain template for autoregressive representation learning (GPT-2 style pretrain)
 
 Change the following:
     1. dataset 
@@ -9,7 +8,6 @@ Change the following:
         initialize with the desired model (e.g. alternative implementation of transformer_AE.NeuralDecoder)
     3. optimizer, criterion(loss)
 """
-
 
 import numpy as np
 import pandas as pd
@@ -39,7 +37,7 @@ from datasets.sequence_data_transformer import (
 from datasets.utils.text_processor import PHONE_DEF_SIL
 
 
-from models.transformer_AE import NeuralDecoder
+from models.DeBCI import NeuralDecoder
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -252,7 +250,7 @@ def training(local_rank, config):
     
     trainer.run(dl_train, max_epochs=config['max_epochs'])
 
-@hydra.main(config_path='configs', config_name='config_contrastive_pt')
+@hydra.main(config_path='configs', config_name='config_auto_pt')
 def main(config):
     if config['distributed']:
         with idist.Parallel(backend=config['backend'],

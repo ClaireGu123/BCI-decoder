@@ -38,13 +38,13 @@ def in_dataset_transform_ctc(dat,  loc, n_trials, max_frame=600):
         input_features.append(features) # S * 1 * T (max_frame) * F (128 channels * 2)
     return input_features
 
-def out_dataset_transform_ctc(sample):
+def out_dataset_transform_ctc(sample, config):
     input_features = sample['inputFeatures']
     transcript = clean(sample['transcription'])
 
-    classLabels = np.zeros([input_features.shape[0], nClasses]).astype(np.float32)
+    classLabels = np.zeros([input_features.shape[0], config.dataset.n_classes]).astype(np.float32)
     newClassSignal = np.zeros([input_features.shape[0], 1]).astype(np.float32)
-    phon_ids = np.zeros([maxSeqLen]).astype(np.int32)
+    phon_ids = np.zeros([config.dataset.max_seq_len]).astype(np.int32)
 
     transcript_phon = phonemezation(transcript)
     phon_ids[:len(transcript_phon)] = [phoneToId(p) for p in transcript_phon]
@@ -52,7 +52,7 @@ def out_dataset_transform_ctc(sample):
     ceMask = np.zeros([input_features.shape[0]]).astype(np.float32)
     ceMask[0:sample['frameLens']] = 1
 
-    paddedTranscription = np.zeros([maxSeqLen]).astype(np.int32)
+    paddedTranscription = np.zeros([config.dataset.max_seq_len]).astype(np.int32)
     paddedTranscription[0:len(transcript)] = np.array(convert_to_ascii(transcript))
     feature = {'inputFeatures': input_features, 
         'seqClassIDs': phon_ids,

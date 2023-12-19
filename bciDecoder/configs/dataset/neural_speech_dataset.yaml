@@ -21,7 +21,11 @@ sessions:
   - t12.2022.08.11
   - t12.2022.08.13
 
-max_frame: 600
+max_frame: 700
+
+max_seq_len: 500
+
+n_classes: 41
 
 base_dir: '/mnt/instor/doi'
 

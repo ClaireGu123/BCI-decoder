@@ -17,15 +17,18 @@ class NeuralDecoder(nn.Module):
 
         self.linear_proj = nn.Linear(frame_lens, n_classes)
 
+
+    # def lstm_encode(self, x):
+    #     nn.LSTM()
     def encoder(self, x):
         #x = self.flat(x)
         # x = self.bn(x.permute(0,2,1))
-        z, _ = self.lstm_encode(x.permute(0,2,1))
-        # z = self.feature_extractor(x)
+        # z, _ = self.lstm_encode(x.permute(0,2,1))
+        z = self.feature_extractor(x)
         return z
     
     def decoder(self, x):
-        x, _ = self.lstm_decode(x)
+        # x, _ = self.lstm_decode(x)
         output = self.linear_proj(x)
         return output
 

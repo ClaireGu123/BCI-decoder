@@ -40,9 +40,13 @@ def run_test(config):
     train_loader, test_loader = _load_datasets(config)
     print(f'total number of train trials across all sessions: {len([bid for bid, s in enumerate(train_loader)])}')
     print(f'total number of test trials across all sessions: {len([bid for bid, s in enumerate(test_loader)])}')
-    first_batch = [sample.input_features for _, sample in enumerate(test_loader)][0]
-    print(f'batch shape: {first_batch.shape}')
-    assert(first_batch.shape==(config.batch_size, 1,config.dataset.max_frame,256))
+    first_batch_x = [sample.input_features for _, sample in enumerate(test_loader)][0]
+    print(f'feature batch shape: {first_batch_x.shape}')
+    assert(first_batch_x.shape==(config.batch_size, 1,config.dataset.max_frame,256))
+
+    first_batch_y = [sample.seqClassIDs for _, sample in enumerate(test_loader)][0]
+    print(f'output batch shape: {first_batch_y.shape}')
+    assert(first_batch_y.shape==(config.batch_size, config.dataset.max_seq_len))
 
 if __name__ == "__main__":
     run_test()
