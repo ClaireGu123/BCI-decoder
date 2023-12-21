@@ -13,11 +13,11 @@ hydra:
           - dataset.sessions
 defaults:
   - dataset: neural_speech_dataset.yaml
-  - model: transformer_AE.yaml
+  - model: DeBCI.yaml
 
 
 distributed: false
-batch_size: 16
+batch_size: 8
 max_epochs: 1
 num_workers: 10
 nproc_per_node: 2 # number of GPUs/CPUs

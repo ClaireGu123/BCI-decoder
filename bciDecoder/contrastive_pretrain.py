@@ -37,7 +37,7 @@ from datasets.sequence_data_transformer import (
 from datasets.utils.text_processor import PHONE_DEF_SIL
 
 
-from models.DeBCI import NeuralDecoder
+from models.neural_decoder import NeuralDecoder
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -125,7 +125,7 @@ def load_train_val_sets(config):
 
 
 def initialize_model(config, ):
-    neural_decoder = NeuralDecoder(config,)
+    neural_decoder = NeuralDecoder(config)
     optimizer  = torch.optim.Adam(neural_decoder.parameters(), lr=1e-3, weight_decay=1e-4)
     if config['distributed']:
         neural_decoder = idist.auto_model(neural_decoder)
@@ -250,7 +250,7 @@ def training(local_rank, config):
     
     trainer.run(dl_train, max_epochs=config['max_epochs'])
 
-@hydra.main(config_path='configs', config_name='config_auto_pt')
+@hydra.main(config_path='configs', config_name='config_contrastive_pt', version_base='1.1')
 def main(config):
     if config['distributed']:
         with idist.Parallel(backend=config['backend'],

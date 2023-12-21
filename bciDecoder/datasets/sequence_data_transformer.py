@@ -17,8 +17,8 @@ from datasets.utils.text_processor import (
 LOCATION_MAPPING = {'6v': {'start_ind': 0, 'end_ind': 128}, 
                 '44': {'start_ind':128, 'end_ind': 256}}
 
-nClasses = 40
-maxSeqLen = 500
+# nClasses = 40
+# maxSeqLen = 500
 
 def in_dataset_transform_ctc(dat,  loc, n_trials, max_frame=600):
     # TODO: truncate with a warning
@@ -34,8 +34,8 @@ def in_dataset_transform_ctc(dat,  loc, n_trials, max_frame=600):
             [dat['tx1'][0,i][:,LOCATION_MAPPING[loc]['start_ind']:LOCATION_MAPPING[loc]['end_ind']], 
             dat['spikePow'][0,i][:,LOCATION_MAPPING[loc]['start_ind']:LOCATION_MAPPING[loc]['end_ind']]], 
             axis=1)
-        features = _pad_time_dim(features, max_frame)[np.newaxis, : ,:]
-        input_features.append(features) # S * 1 * T (max_frame) * F (128 channels * 2)
+        features = _pad_time_dim(features, max_frame) # [np.newaxis, : ,:]
+        input_features.append(features) # S * T (max_frame) * F (128 channels * 2)
     return input_features
 
 def out_dataset_transform_ctc(sample, config):
