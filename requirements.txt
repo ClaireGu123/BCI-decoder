@@ -6,3 +6,6 @@ tensorflow
 g2p-en
 pytorch-ignite
 fire
+hydra-core
+pandas
+torchmetrics
