@@ -1,22 +1,23 @@
 hydra:
   run:
-    dir: ${outputDir}
+    dir: ${output_path}
   sweep:
-    dir: ${outputDir}
+    dir: ${output_path}
     subdir: ${hydra.job.override_dirname}
   job:
     config:
       override_dirname:
         exclude_keys:
-          - outputDir
+          - output_path
           - loadDir
           - dataset.sessions
 defaults:
   - dataset: neural_speech_dataset.yaml
   - model: DeBCI.yaml
 
-
+seed: 1234
 distributed: false
+with_clearml: true
 batch_size: 8
 max_epochs: 1
 num_workers: 10
@@ -24,6 +25,6 @@ nproc_per_node: 2 # number of GPUs/CPUs
 backend: 'gloo' # mpi, gloo, nccl https://pytorch.org/docs/stable/distributed.html#backends
 
 
-outputDir: chkpoint_contrastive
+output_path: chkpoint_contrastive
 
 

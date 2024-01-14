@@ -1,3 +1,5 @@
+name:  'DeBCI'
+
 in_channels: 256
 num_frames: 700
 # in_feature_dim: 128

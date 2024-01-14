@@ -11,17 +11,22 @@ Change the following:
 
 import numpy as np
 import pandas as pd
+import os
+from datetime import datetime
+from pathlib import Path
 
 import hydra
 import torch
 import torch.utils.data
+
+import ignite
 import ignite.distributed as idist
 from ignite.engine import Events, Engine
 from ignite.metrics import  Loss
 from ignite.handlers import PiecewiseLinear
+from ignite.utils import manual_seed, setup_logger
 
 from torch.cuda.amp import autocast, GradScaler
-import torch.utils.model_zoo as model_zoo
 
 import torch.onnx
 from torchmetrics.text import CharErrorRate
@@ -60,6 +65,24 @@ torch.backends.cudnn.deterministic = True
     # TODO: figure out the training procedure: 
         #   random sample-batch across all sessions vs. random sample-batch within session
 
+
+def get_save_handler(config):
+    if config["with_clearml"]:
+        from ignite.contrib.handlers.clearml_logger import ClearMLSaver
+
+        return ClearMLSaver(dirname=config["output_path"])
+
+    return config["output_path"]
+
+def load_checkpoint(resume_from):
+    checkpoint_fp = Path(resume_from)
+    assert (
+        checkpoint_fp.exists()
+    ), f"Checkpoint '{checkpoint_fp.as_posix()}' is not found"
+    checkpoint = torch.load(checkpoint_fp.as_posix(), map_location="cpu")
+    return checkpoint
+
+
 def cer(pred_ids, targets):
     # def make_str(ids):
     #     return ''.join([chr(p) for p in ids])
@@ -85,7 +108,6 @@ def output_transform_ctc(output):
     return y_pred_log_probs.permute(1,0,2), output[1], {'input_lengths':input_lengths, 
                                                         'target_lengths':target_lengths,
                                                         }
-
 
 def load_train_val_sets(config):
 
@@ -205,20 +227,85 @@ def create_evaluator(model):
     metric.attach(evaluator, 'cer')
     return evaluator
 
-def setup_rank_zero():
+def setup_rank_zero(logger, config):
     # TODO: setting up things on the master process `rank`=0
     # TODO: save model and checkpoints
-    pass
+    device = idist.device()
+
+    now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_path = config['output_path']
+
+    folder_name = (
+        f"{config['model']['name']}-{idist.backend()}-{idist.get_world_size()}-{now}"
+    )
+
+    output_path = Path(output_path) / folder_name
+
+
+    if not output_path.exists():
+        output_path.mkdir(parents=True)
+
+    config['output_path'] = output_path.as_posix()
+    logger.info(f"Output path: {config['output_path']}")
+
+    if config['with_clearml']:
+        from clearml import Task
+
+        task = Task.init(
+            project_name="contrastive_pretrain",
+            task_name=output_path.stem,
+        )
+        config["clearml_task_id"] = task.id
+        logger.info(f"ClearML task: {task.id}")
+
+        task.connect_configuration(config)
+
+        hyper_params = [
+            "model",
+            "batch_size",
+            "max_epochs",
+        ]
+        task.connect({k: v for k, v in config.items()})
+ 
+def log_basic_info(logger, config):
+    logger.info(f"Train on CIFAR10")
+    logger.info(f"- PyTorch version: {torch.__version__}")
+    logger.info(f"- Ignite version: {ignite.__version__}")
+    if torch.cuda.is_available():
+        # explicitly import cudnn as torch.backends.cudnn can not be pickled with hvd spawning procs
+        from torch.backends import cudnn
+
+        logger.info(
+            f"- GPU Device: {torch.cuda.get_device_name(idist.get_local_rank())}"
+        )
+        logger.info(f"- CUDA version: {torch.version.cuda}")
+        logger.info(f"- CUDNN version: {cudnn.version()}")
+
+    logger.info("\n")
+    logger.info("Configuration:")
+    for key, value in config.items():
+        logger.info(f"\t{key}: {value}")
+    logger.info("\n")
+
+    if idist.get_world_size() > 1:
+        logger.info("\nDistributed setting:")
+        logger.info(f"\tbackend: {idist.backend()}")
+        logger.info(f"\tworld size: {idist.get_world_size()}")
+        logger.info("\n")
+
+
 
 def training(local_rank, config):
 
     rank = idist.get_rank()
 
     # TODO: setup seed
+    manual_seed(config['seed'] + rank)
     # TODO: setup logger
+    log_basic_info(logger, config)
 
-    # if rank == 0:
-    #     setup_rank_zero(cofig)
+    if rank == 0:
+        setup_rank_zero(config)
 
     neural_decoder, optimizer, criterion = initialize_model(config)
     dl_train, dl_val = load_train_val_sets(config)

@@ -263,6 +263,11 @@ class DeBCIAttention(nn.Module):
         key_states = key_states.reshape(*proj_shape)
         value_states = value_states.reshape(*proj_shape)
 
+        # #######Falsh Attention#####################
+        # torch.nn.functional.scaled_dot_product_attention(query_states, key_states, value_states, attn_mask=None, 
+        #     dropout_p=self.dropout if self.training else 0, is_causal=True)
+        #############################################
+
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
