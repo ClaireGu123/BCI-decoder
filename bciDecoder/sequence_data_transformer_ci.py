@@ -42,7 +42,7 @@ def run_test(config):
     print(f'total number of test trials across all sessions: {len([bid for bid, s in enumerate(test_loader)])}')
     first_batch_x = [sample.input_features for _, sample in enumerate(test_loader)][0]
     print(f'feature batch shape: {first_batch_x.shape}')
-    assert(first_batch_x.shape==(config.batch_size, 1,config.dataset.max_frame,256))
+    assert(first_batch_x.shape==(config.batch_size, config.dataset.max_frame,256))
 
     first_batch_y = [sample.seqClassIDs for _, sample in enumerate(test_loader)][0]
     print(f'output batch shape: {first_batch_y.shape}')

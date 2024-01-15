@@ -1,12 +1,5 @@
 """
-pretrain template for autoregressive representation learning (GPT-2 style pretrain)
-
-Change the following:
-    1. dataset 
-        (use custom in_dataset_transform_x, out_dataset_transform_x to make desired input[features, targets] and outputs)
-    2. model
-        initialize with the desired model (e.g. alternative implementation of transformer_AE.NeuralDecoder)
-    3. optimizer, criterion(loss)
+contrastive pretraining representation learning for neural decoder
 """
 
 import numpy as np
@@ -30,6 +23,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 import torch.onnx
 from torchmetrics.text import CharErrorRate
+from torchsummary import summary
 
 
 from datasets.neural_speech_dataset import NeuralDataset
@@ -83,16 +77,16 @@ def load_checkpoint(resume_from):
     return checkpoint
 
 
+def id2phon(ids):
+    return ' '.join([PHONE_DEF_SIL[id_] for id_ in ids])
+
 def cer(pred_ids, targets):
     # def make_str(ids):
     #     return ''.join([chr(p) for p in ids])
-    def id2phon(ids):
-        return ' '.join([PHONE_DEF_SIL[id_] for id_ in ids])
-
     pred = np.apply_along_axis(id2phon, 1,pred_ids.cpu().numpy())
     target = np.apply_along_axis(id2phon, 1,targets.cpu().numpy())
-    # print(f"prediction sample: {pred[0]}")
-    # print(f"target sample: {target[0]}")
+    # print(f"prediction sample: {pred[0][:100]}")
+    # print(f"target sample: {target[0][:100]}")
     return CharErrorRate()(pred, target)
     
 
@@ -148,6 +142,7 @@ def load_train_val_sets(config):
 
 def initialize_model(config, ):
     neural_decoder = NeuralDecoder(config)
+    summary(neural_decoder, (config.model.num_frames, config.model.in_channels))
     optimizer  = torch.optim.Adam(neural_decoder.parameters(), lr=1e-3, weight_decay=1e-4)
     if config['distributed']:
         neural_decoder = idist.auto_model(neural_decoder)
@@ -302,6 +297,7 @@ def training(local_rank, config):
     # TODO: setup seed
     manual_seed(config['seed'] + rank)
     # TODO: setup logger
+    logger = setup_logger(name="Contrastive-Pretraining")
     log_basic_info(logger, config)
 
     if rank == 0:
@@ -316,22 +312,22 @@ def training(local_rank, config):
     evaluator = create_evaluator(neural_decoder)
 
 
-    @trainer.on(Events.EPOCH_COMPLETED(every=1))
+    @trainer.on(Events.ITERATION_COMPLETED(every=5))
     def evaluate_model(trainer):
         
         evaluator.run(dl_train)
         metrics = evaluator.state.metrics
 
-        print("Train Results - Epoch: {} CTC Loss: {:.2f} cer: {:.2f}"
-        .format(trainer.state.epoch, metrics['ctc_loss'],
+        print("Train Results - Iteration: {} CTC Loss: {:.2f} cer: {:.2f}"
+        .format(trainer.state.iteration, metrics['ctc_loss'],
                 metrics['cer'],
                 ))
         
         evaluator.run(dl_val)
         metrics = evaluator.state.metrics
 
-        print("Test Results - Epoch: {} CTC Loss: {:.2f} : {:.2f}"
-        .format(trainer.state.epoch, metrics['ctc_loss'],
+        print("Test Results - Iteration: {} CTC Loss: {:.2f} : {:.2f}"
+        .format(trainer.state.iteration, metrics['ctc_loss'],
                 metrics['cer'],
                 ))
     

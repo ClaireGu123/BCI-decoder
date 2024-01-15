@@ -1,11 +1,7 @@
 name:  'DeBCI'
 
-in_channels: 256
-num_frames: 700
-# in_feature_dim: 128
-
-
-
+activation_dropout: 0.5
+attention_dropout: 0.1
 
 conv_bias: false
 
@@ -15,19 +11,17 @@ conv_dim:
   - 512
 
 conv_kernel:
-  - 10
+  - 5
   - 3
-  - 3
+  - 2
 
 conv_stride:
-  - 1
+  - 3
   - 1
   - 1
 
 ctc_loss_reduction: 'sum'
 
-activation_dropout: 0.5
-attention_dropout: 0.1
 feat_extract_activation: 'gelu'
 feat_extract_dropout: 0.0
 feat_proj_dropout: 0.1
@@ -38,6 +32,7 @@ gradient_checkpointing: false
 hidden_act: 'gelu'
 hidden_size: 1024  # input to the attention layer
 hidden_dropout: 0.1
+in_channels: 256
 initializer_range: 0.02
 intermediate_size: 4096
 layer_norm_eps: 1e-12
@@ -47,6 +42,7 @@ num_conv_pos_embeddings: 128
 num_conv_pos_embedding_groups: 16
 num_attention_heads: 16
 num_hidden_layers: 6
+num_frames: 700
 n_classes: 41
 n_conv_layers: 3
 output_attentions: false

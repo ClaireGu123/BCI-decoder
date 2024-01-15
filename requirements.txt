@@ -9,3 +9,4 @@ fire
 hydra-core
 pandas
 torchmetrics
+clearml
