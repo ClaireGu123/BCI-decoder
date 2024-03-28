@@ -57,6 +57,7 @@ class NeuralDataset(IterableDataset):
             #collect area 6v tx1 and spikePow features
             input_features = self.input_transform(dat, self.loc, n_trials, self.max_frame) #S * T * F (128 channels * 2)
             input_features = _block_wise_normalization(dat, input_features)
+            n_trials = 1
             for i in range(n_trials):    
                 sentence_len = input_features[i].shape[0]
                 sentence = dat['sentenceText'][i].strip()

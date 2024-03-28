@@ -1,4 +1,4 @@
-name:  'DeBCI'
+name:  'CLIP'
 
 activation_dropout: 0.5
 attention_dropout: 0.1
@@ -49,6 +49,8 @@ n_classes: 41
 n_conv_layers: 2
 output_attentions: false
 output_hidden_states: false
+reg: 0.005
+text_embedding_dim: 768
 use_return_dict: false
 
 

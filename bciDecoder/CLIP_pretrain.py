@@ -15,8 +15,6 @@ import torch.utils.data
 import ignite
 import ignite.distributed as idist
 from ignite.engine import Events, Engine
-from ignite.metrics import  Loss
-from ignite.handlers import PiecewiseLinear
 from ignite.utils import manual_seed, setup_logger
 
 from torch.cuda.amp import autocast, GradScaler
@@ -37,7 +35,8 @@ from datasets.sequence_data_transformer import (
 from datasets.utils.text_processor import PHONE_DEF_SIL
 
 
-from models.neural_decoder import NeuralDecoder
+from models.CLIP_model import CLIP
+from models.decoder_metrics import CLIPLoss
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -89,20 +88,13 @@ def cer(pred_ids, targets):
     print(f"prediction sample: {pred[0][:100]}")
     print(f"target sample: {target[0][:100]}")
     return CharErrorRate()(pred, target)
-    
 
-def output_transform_cer(output):
-    return torch.argmax(output[0], dim=-1), output[1]
+# def clip_loss(embed1, embed2):
+#     cross_cor = torch.matmul(torch.permute(text_embeds,(1,0)), ecog_embeds) / text_embeds.shape[0]
+#     c_diff = (cross_cor - torch.eye(text_embeds.shape[1]).to(device)).pow(2)
+#     scaled = c_diff.mul_(self.config.model.reg)
+#     retrun torch.diagonal(c_diff).sum() + scaled.sum() - torch.diagonal(scaled).sum()
 
-def output_transform_ctc(output):
-    y_pred_log_probs = torch.nn.functional.log_softmax(output[0], dim=-1)
-    y = output[1]
-    input_lengths = torch.full((y_pred_log_probs.shape[0], ), y_pred_log_probs.shape[1], dtype=torch.long).to(device)
-        
-    target_lengths = output[2].to(device)
-    return y_pred_log_probs.permute(1,0,2), output[1], {'input_lengths':input_lengths, 
-                                                        'target_lengths':target_lengths,
-                                                        }
 
 def load_train_val_sets(config):
 
@@ -142,51 +134,34 @@ def load_train_val_sets(config):
 
 
 def initialize_model(config, ):
-    neural_decoder = NeuralDecoder(config)
-    summary(neural_decoder, (config.model.num_frames, config.model.in_channels))
-    optimizer  = torch.optim.Adam(neural_decoder.parameters(), lr=1e-3, weight_decay=1e-4)
+    clip_model = CLIP(config)
+    summary(clip_model, [(config.model.num_frames, config.model.in_channels, ) ,
+                         (config.model.text_embedding_dim,),])
+    optimizer  = torch.optim.Adam(clip_model.parameters(), lr=1e-3, weight_decay=1e-4)
     if config['distributed']:
-        neural_decoder = idist.auto_model(neural_decoder)
+        clip_model = idist.auto_model(clip_model)
         optimizer = idist.auto_optim(optimizer)
-    criterion = torch.nn.CTCLoss(blank=0, reduction='mean', zero_infinity=True).to(device)
-    return neural_decoder, optimizer, criterion
+    return clip_model, optimizer
 
 
-def create_trainer(model, optimizer, criterion, distributed=False):
+def create_trainer(clip_model, optimizer, distributed=False):
     def step(engine, batch):
-        model.train()
+        clip_model.train()
         optimizer.zero_grad()
-        x, y, target_lengths = batch.input_features, batch.seqClassIDs, batch.targetLengths
+        x, text_emb = batch.input_features,  batch.text_embedings
         x = x.to(device, non_blocking=True)
-        y = y.to(device, non_blocking=True)
-        target_lengths = target_lengths.to(device, non_blocking=True)
+        text_emb = text_emb.to(device, non_blocking=True).squeeze(1)
         if distributed:
             with_amp=True
             with autocast(enabled=with_amp):
-                y_pred = model(x)
-                y_pred_log_probs = torch.nn.functional.log_softmax(y_pred, dim=-1)
-                input_lengths = torch.full((y_pred_log_probs.shape[0], ), y_pred_log_probs.shape[1], dtype=torch.long).to(device)
+                loss = clip_model(x, text_emb)
                 
-                loss = criterion(y_pred_log_probs.permute(1,0,2),
-                                                    y,
-                                                    input_lengths,
-                                                    target_lengths,
-                                                    ) 
                 scaler = GradScaler(init_scale=65536.0, growth_factor=2.0, backoff_factor=0.5, growth_interval=2000, enabled=True)
                 scaler.scale(loss).backward()  # If with_amp=False, this is equivalent to loss.backward()
                 scaler.step(optimizer)  # If with_amp=False, this is equivalent to optimizer.step()
                 scaler.update()  # If with_amp=False, this step does nothing
         else:
-            y_pred = model(x)
-            y_pred_log_probs = torch.nn.functional.log_softmax(y_pred, dim=-1)
-            input_lengths = torch.full((y_pred_log_probs.shape[0], ), y_pred_log_probs.shape[1], dtype=torch.long).to(device)
-            
-            loss = criterion(y_pred_log_probs.permute(1,0,2),
-                                                y,
-                                                input_lengths,
-                                                target_lengths,
-                                                ) 
-            
+            loss = clip_model(x, text_emb)
             loss.backward()
             optimizer.step()
 
@@ -207,21 +182,22 @@ def create_trainer(model, optimizer, criterion, distributed=False):
 #     )
 #     return lr_scheduler
 
-def create_evaluator(model):
+def create_evaluator(clip_model):
     def eval_step(engine, batch):
-        model.eval()
-        x, y, target_lengths = batch.input_features, batch.seqClassIDs, batch.targetLengths
+        clip_model.eval()
+        x, text_emb = batch.input_features,  batch.text_embedings
         x = x.to(device, non_blocking=True)
-        y = y.to(device, non_blocking=True)
-        target_lengths = target_lengths.to(device, non_blocking=True)
-        return model(x), y, target_lengths
+        text_emb = text_emb.to(device, non_blocking=True).squeeze(1)
+        with torch.no_grad():
+            loss = clip_model(x, text_emb)
+        return loss
     evaluator = Engine(eval_step)
 
-    metric = Loss(torch.nn.functional.ctc_loss, output_transform=output_transform_ctc)
-    metric.attach(evaluator, 'ctc_loss')
+    # metric = Loss(lambda x,y: x, output_transform=lambda x: x)
+    # metric.attach(evaluator, 'clip_loss')
+    metric = CLIPLoss(ignored_class=-100)
+    metric.attach(evaluator, 'clip_loss')
 
-    metric = Loss(cer, output_transform=output_transform_cer)
-    metric.attach(evaluator, 'cer')
     return evaluator
 
 def setup_rank_zero(logger, config):
@@ -299,43 +275,43 @@ def training(local_rank, config):
     # TODO: setup seed
     manual_seed(config['seed'] + rank)
     # TODO: setup logger
-    logger = setup_logger(name="Contrastive-Pretraining")
+    logger = setup_logger(name="CLIP_pretrain")
     log_basic_info(logger, config)
 
     if rank == 0:
         setup_rank_zero(logger, config)
 
-    neural_decoder, optimizer, criterion = initialize_model(config)
+    clip_model, optimizer = initialize_model(config)
     dl_train, dl_val = load_train_val_sets(config)
 
     # TODO: setup learning rate scheduler
 
-    trainer = create_trainer(neural_decoder.to(device), optimizer, criterion, config['distributed'])
-    evaluator = create_evaluator(neural_decoder)
+    trainer = create_trainer(clip_model.to(device), optimizer, config['distributed'])
+    evaluator = create_evaluator(clip_model)
 
 
-    @trainer.on(Events.ITERATION_COMPLETED(every=2))
+    @trainer.on(Events.ITERATION_COMPLETED(every=1))
     def evaluate_model(trainer):
         
         evaluator.run(dl_train)
         metrics = evaluator.state.metrics
 
-        logger.info("Train Results - Iteration: {} CTC Loss: {:.2f} cer: {:.2f}"
-        .format(trainer.state.iteration, metrics['ctc_loss'],
-                metrics['cer'],
+        logger.info("Train Results - Iteration: {} CLIP Loss: {:.2f} "
+        .format(trainer.state.iteration, metrics['clip_loss'],
                 ))
         
         evaluator.run(dl_val)
         metrics = evaluator.state.metrics
 
-        logger.info("Test Results - Iteration: {} CTC Loss: {:.2f} : {:.2f}"
-        .format(trainer.state.iteration, metrics['ctc_loss'],
-                metrics['cer'],
+        logger.info("Test Results - Iteration: {} CLIP Loss: {:.2f} "
+        .format(trainer.state.iteration, metrics['clip_loss'],
                 ))
     
     trainer.run(dl_train, max_epochs=config['max_epochs'])
 
-@hydra.main(config_path='configs', config_name='config_contrastive_pt', version_base='1.1')
+global config
+
+@hydra.main(config_path='configs', config_name='config_clip_pt', version_base='1.1')
 def main(config):
     if config['distributed']:
         with idist.Parallel(backend=config['backend'],

@@ -13,12 +13,12 @@ hydra:
           - dataset.sessions
 defaults:
   - dataset: neural_speech_dataset.yaml
-  - model: DeBCI.yaml
+  - model: CLIP.yaml
 
 seed: 1234
-distributed: true
+distributed: false
 with_clearml: true
-batch_size: 32
+batch_size: 64
 max_epochs: 10
 num_workers: 16
 nproc_per_node: 2 # number of GPUs/CPUs
